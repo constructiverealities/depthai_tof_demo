@@ -15,9 +15,9 @@ void initUndistortRectifyMap( const float* lp,
     float p1 = lp[6];
     float p2 = lp[7];
     float k3 = lp[8];
-    float k4 = 0;
-    float k5 = 0;
-    float k6 = 0;
+    float k4 = lp[9];
+    float k5 = lp[10];
+    float k6 = lp[11];
 
     float ir[] = {
             1.f/fx,       0,       -u0/fx,
@@ -67,12 +67,14 @@ void fill_pointcloud_map(const float* lp, float* pc_map) {
     }
 }
 
+float ext_scale = .01;
+
 #define RESTRICT_PTR *__restrict__
 static inline void transform_point(const std::vector<std::vector<float>>& tx, const float *xyz, float *tx_xyz) {
     float X = xyz[0], Y = xyz[1], Z = xyz[2];
-    tx_xyz[0] = tx[0][0]*X + tx[0][1]*Y + tx[0][2]*Z + tx[0][3];
-    tx_xyz[1] = tx[1][0]*X + tx[1][1]*Y + tx[1][2]*Z + tx[1][3];
-    tx_xyz[2] = tx[2][0]*X + tx[2][1]*Y + tx[2][2]*Z + tx[2][3];
+    tx_xyz[0] = tx[0][0]*X + tx[0][1]*Y + tx[0][2]*Z + tx[0][3] * ext_scale;
+    tx_xyz[1] = tx[1][0]*X + tx[1][1]*Y + tx[1][2]*Z + tx[1][3] * ext_scale;
+    tx_xyz[2] = tx[2][0]*X + tx[2][1]*Y + tx[2][2]*Z + tx[2][3] * ext_scale;
 }
 
 static inline void project_points(const float RESTRICT_PTR lp, const float  RESTRICT_PTR xyz,
@@ -103,15 +105,18 @@ static inline void project_points(const float RESTRICT_PTR lp, const float  REST
     uv[0] = xd*fx + cx;
     uv[1] = yd*fy + cy;
 }
+cv::Mat lastRGB;
 struct DepthaAICamera {
     std::string name;
 
     DepthaAICamera(const std::string &name)
             : name(name) {}
 
-    void publish(const cv::Mat &cvFrame) const {
+  void publish(const cv::Mat &cvFrame, const cv::Mat *blend = 0) const {
+        cv::namedWindow(name, cv::WINDOW_GUI_EXPANDED); 
         if (cvFrame.channels() == 3) {
             cv::imshow(name, cvFrame);
+	    lastRGB = cvFrame;
         } else {
             cv::Mat as8u;
             cv::convertScaleAbs(cvFrame, as8u, 1 / 3000. * 255., 0);
@@ -119,7 +124,14 @@ struct DepthaAICamera {
 
             cv::Mat img_color;
             applyColorMap(as8u, img_color, cv::COLORMAP_JET);
-            cv::namedWindow(name, cv::WINDOW_GUI_EXPANDED);
+
+	    cv::Mat mask;
+	    cv::inRange(cvFrame, cv::Scalar(0), cv::Scalar(0), mask);
+	    img_color.setTo(cv::Scalar(0, 0, 0), mask);
+
+	    if(blend && blend->data)
+	      addWeighted( img_color, .5, *blend, .5, 0.0, img_color);
+
             cv::imshow(name, img_color);
         }
     }
@@ -131,7 +143,7 @@ std::vector<float> create_lp(const std::vector<std::vector<float>>& k, const std
             k[1][1],
             k[0][2],
             k[1][2],
-            d[0], d[1], d[2], d[3], d[4]
+            d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8]
     };
     rtn.resize(12);
     return rtn;
@@ -248,7 +260,9 @@ int start(dai::Device &device, int argc, char **argv) {
             }
             if(width != 0 && event == "depth" && cvFrame.rows > 1 && cvFrame.cols > 1) {
                 auto registered_depth = registerDepth(cvFrame, pc_map, tx, depth_lp, rgb_lp, height, width, 4);
-                cameras["registered_depth"]->publish(registered_depth);
+		cv::Mat downsample;
+		cv::resize(lastRGB, downsample, cv::Size(registered_depth.cols, registered_depth.rows));
+                cameras["registered_depth"]->publish(registered_depth, &downsample);
             }
         }
     }
@@ -259,8 +273,16 @@ int start(dai::Device &device, int argc, char **argv) {
 int main(int argc, char **argv) {
     dai::Pipeline pipeline;
 
-    if(argc > 1 && std::string(argv[1]) == "--right") {
-      rgb_socket = dai::CameraBoardSocket::RIGHT;
+    for(int i = 1;i < argc;i++) {
+      if(std::string(argv[i]) == "--right") {
+	rgb_socket = dai::CameraBoardSocket::RIGHT;
+      } else if(std::string(argv[i]) == "--camD") {
+	rgb_socket = dai::CameraBoardSocket::CAM_D;
+      }
+
+      if(std::string(argv[i]) == "--old-ext-cal") {
+	ext_scale = 1;
+      }
     }
     
     auto xinPicture = pipeline.create<dai::node::Camera>();
