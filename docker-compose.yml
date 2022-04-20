@@ -1,0 +1,17 @@
+version: '2'
+services:
+  depthai_tof_demo:
+    network_mode: host
+    environment:
+      - UDEV=1
+      - LD_LIBRARY_PATH=/usr/local/lib
+      - 'DISPLAY=${DISPLAY}'
+    privileged: true
+    image: depthai_tof_demo
+    devices:
+      - '/dev:/dev'
+    volumes:
+      - '/dev:/dev'
+      - '/tmp/.X11-unix:/tmp/.X11-unix'
+      - '~/.Xauthority:/root/.Xauthority'
+    restart: on-failure
