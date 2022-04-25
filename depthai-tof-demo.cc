@@ -232,7 +232,9 @@ int start(dai::Device &device, int argc, char **argv) {
     int width = 0, height = 0;
 
     while (!device.isClosed()) {
-        cv::waitKey(5);
+        auto ch = cv::waitKey(5);
+	if(ch == 'q' || ch == 'Q') break;
+	
         auto event = device.getQueueEvent(names, std::chrono::milliseconds(100));
         if (event.empty()) {
             continue;
