@@ -213,15 +213,21 @@ int start(dai::Device &device, int argc, char **argv) {
     }
 
     auto calibration = device.readCalibration();
-    auto depth_intrinsics = calibration.getCameraIntrinsics(tof_socket);
-    auto depth_distortion = calibration.getDistortionCoefficients(tof_socket);
-    auto rgb_intrinsics = calibration.getCameraIntrinsics(rgb_socket);
-    auto rgb_distortion = calibration.getDistortionCoefficients(rgb_socket);
-    auto tx = calibration.getCameraExtrinsics(tof_socket, rgb_socket);
+    std::vector<std::vector<float>> tx;
+    std::vector<float> depth_lp, rgb_lp;    
+    try {
+      auto depth_intrinsics = calibration.getCameraIntrinsics(tof_socket);
+      auto depth_distortion = calibration.getDistortionCoefficients(tof_socket);
+      auto rgb_intrinsics = calibration.getCameraIntrinsics(rgb_socket);
+      auto rgb_distortion = calibration.getDistortionCoefficients(rgb_socket);
+      tx = calibration.getCameraExtrinsics(tof_socket, rgb_socket);
 
-    auto depth_lp = create_lp(depth_intrinsics, depth_distortion);
-    auto rgb_lp = create_lp(rgb_intrinsics, rgb_distortion);
-    fill_pointcloud_map(depth_lp.data(), pc_map);
+      depth_lp = create_lp(depth_intrinsics, depth_distortion);
+      rgb_lp = create_lp(rgb_intrinsics, rgb_distortion);
+      fill_pointcloud_map(depth_lp.data(), pc_map);
+    } catch(std::exception& e) {
+      fprintf(stderr, "Error trying to access calibration. Your device must be calibrated for the full visualization. Error: %s\n", e.what());
+    }
 
     int width = 0, height = 0;
 
@@ -258,7 +264,7 @@ int start(dai::Device &device, int argc, char **argv) {
                 width = cvFrame.cols;
                 height = cvFrame.rows;
             }
-            if(width != 0 && event == "depth" && cvFrame.rows > 1 && cvFrame.cols > 1) {
+            if(width != 0 && event == "depth" && cvFrame.rows > 1 && cvFrame.cols > 1 && !tx.empty()) {
                 auto registered_depth = registerDepth(cvFrame, pc_map, tx, depth_lp, rgb_lp, height, width, 4);
 		cv::Mat downsample;
 		cv::resize(lastRGB, downsample, cv::Size(registered_depth.cols, registered_depth.rows));
