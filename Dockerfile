@@ -38,5 +38,8 @@ RUN mkdir -p /build/depthai_tof_demo && \
     make -j 4 && \
     rm -rf /repos
 
+ADD mvcmds /mvcmds
 
-CMD /build/depthai_tof_demo/depthai-tof-demo
+ENV DEPTHAI_MODEL_NAME depthai
+
+CMD DEPTHAI_DEVICE_BINARY=/mvcmds/$DEPTHAI_MODEL_NAME.mvcmd /build/depthai_tof_demo/depthai-tof-demo
