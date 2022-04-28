@@ -18,11 +18,11 @@ if(BUILD_DEPTHAI)
 
   #FetchContent_MakeAvailable(opencv)
   FetchContent_MakeAvailable(depthai-core)
+  project(depthai_tof_demo)
 else()
+  project(depthai_tof_demo)
   find_package(depthai REQUIRED)
-
 endif()
-project(depthai_tof_demo)
 
 set(CMAKE_CXX_STANDARD 14)
 

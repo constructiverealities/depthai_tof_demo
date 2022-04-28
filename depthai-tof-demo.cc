@@ -182,7 +182,7 @@ cv::Mat registerDepth(const cv::Mat& depth, const float* pc_map, const std::vect
     return registeredDepth;
 }
 
-dai::CameraBoardSocket rgb_socket = dai::CameraBoardSocket::LEFT;
+dai::CameraBoardSocket rgb_socket = dai::CameraBoardSocket::AUTO;
 dai::CameraBoardSocket tof_socket = dai::CameraBoardSocket::CENTER;
 
 float pc_map[PMD_TOF_COLS * PMD_TOF_ROWS * 3] = { 0 };
@@ -284,6 +284,8 @@ int main(int argc, char **argv) {
     for(int i = 1;i < argc;i++) {
       if(std::string(argv[i]) == "--right") {
 	rgb_socket = dai::CameraBoardSocket::RIGHT;
+      } if(std::string(argv[i]) == "--left") {
+	rgb_socket = dai::CameraBoardSocket::LEFT;
       } else if(std::string(argv[i]) == "--camD") {
 	rgb_socket = dai::CameraBoardSocket::CAM_D;
       }
@@ -291,6 +293,41 @@ int main(int argc, char **argv) {
       if(std::string(argv[i]) == "--old-ext-cal") {
 	ext_scale = 1;
       }
+    }
+
+    dai::Device device;
+    dai::CameraBoardSocket possible_rgb_socket = dai::CameraBoardSocket::AUTO;
+    bool rgbSocketFound = false;
+    for(auto& feature : device.getConnectedCameraFeatures()) {
+      if(feature.socket == dai::CameraBoardSocket::RIGHT && feature.sensorName == "IMX378") {
+	// Right and left share an i2c bus and IMX378's don't have an option to have different device IDs. So
+	// we just assume they are in the left socket always for now.
+	continue;
+      }
+      fprintf(stderr, "Camera %s on socket %d\n", feature.sensorName.c_str(), (int)feature.socket);
+      bool canBeRGB = false;
+      bool canBeMono = false;
+      for(auto& type : feature.supportedTypes) {
+	canBeRGB |= type == dai::CameraSensorType::COLOR;
+	canBeMono |= type == dai::CameraSensorType::MONO;
+      }
+      if(rgb_socket == feature.socket && !canBeRGB) {
+	rgb_socket = dai::CameraBoardSocket::AUTO;
+      }
+      rgbSocketFound |= rgb_socket == feature.socket; 
+      if(canBeRGB) {
+	possible_rgb_socket = feature.socket;
+	if(!canBeMono) break;
+      }
+    }
+
+    if(!rgbSocketFound || rgb_socket == dai::CameraBoardSocket::AUTO) {
+      rgb_socket = possible_rgb_socket;
+    }
+
+    if(rgb_socket == dai::CameraBoardSocket::AUTO) {
+      fprintf(stderr, "Could not find RGB socket; exiting\n");
+      return -1;
     }
     
     auto xinPicture = pipeline.create<dai::node::Camera>();
@@ -317,8 +354,7 @@ int main(int argc, char **argv) {
         kv.second->link(xoutVideo->input);
     }
 
-    dai::Device device(pipeline);
-
+    device.startPipeline(pipeline);
     device.setLogLevel(dai::LogLevel::INFO);
 
     return start(device, argc, argv);

@@ -36,7 +36,7 @@ ADD . /repos/source
 RUN --mount=type=ssh --mount=type=cache,target=/root/.hunter  \
     mkdir -p /build/depthai_tof_demo && \
     cd /build/depthai_tof_demo && \
-    cmake -DBUILD_DEPENDENCIES=ON /repos/source && \
+    cmake -DBUILD_DEPTHAI=ON /repos/source && \
     make -j 4 && \
     rm -rf /repos
 

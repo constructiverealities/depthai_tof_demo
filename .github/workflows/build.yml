@@ -69,7 +69,7 @@ jobs:
       # access regardless of the host operating system
       shell: bash
       working-directory: ${{runner.workspace}}/build
-      run: cmake $GITHUB_WORKSPACE -DBUILD_DEPTHAI=On -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=install_root ${{matrix.config_flags}}
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake -DBUILD_DEPTHAI=On -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=install_root ${{matrix.config_flags}}
 
     - name: Build
       working-directory: ${{runner.workspace}}/build
