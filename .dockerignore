@@ -1,3 +1,10 @@
 build
 .git
+.github
 .dockerignore
+Dockerfile
+docker-compose.yml
+README.md
+LICENSE
+build-docker.sh
+run_docker.sh
