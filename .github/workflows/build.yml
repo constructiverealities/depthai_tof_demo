@@ -53,7 +53,7 @@ jobs:
     - name: Get vcpkg(windows)
       if: ${{ steps.vcpkg-cache.outputs.cache-hit != 'true' }}  
       run: |
-        cd ${{ github.workspace }}
+        cd $GITHUB_WORKSPACE
         mkdir build -force
         git clone https://github.com/Microsoft/vcpkg.git
         cd vcpkg
