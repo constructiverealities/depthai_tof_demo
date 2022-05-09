@@ -4,12 +4,6 @@ option(BUILD_DEPTHAI "Build all relevant dependencies" OFF)
 
 include(FetchContent)
 if(BUILD_DEPTHAI)
-  # FetchContent_Declare(
-  #       opencv
-  #       GIT_REPOSITORY https://github.com/opencv/opencv.git
-  #       GIT_TAG        4.4.0
-  # 	)
-
   FetchContent_Declare(
     depthai-core
     GIT_REPOSITORY https://github.com/luxonis/depthai-core.git
@@ -31,3 +25,4 @@ include_directories( ${OpenCV_INCLUDE_DIRS} )
 
 add_executable(depthai-tof-demo depthai-tof-demo.cc)
 target_link_libraries(depthai-tof-demo depthai::opencv ${OpenCV_LIBS})
+install(TARGETS depthai-tof-demo DESTINATION bin)

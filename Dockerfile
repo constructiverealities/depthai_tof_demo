@@ -37,7 +37,7 @@ RUN --mount=type=ssh --mount=type=cache,target=/root/.hunter  \
     mkdir -p /build/depthai_tof_demo && \
     cd /build/depthai_tof_demo && \
     cmake -DBUILD_DEPTHAI=OFF /repos/source && \
-    make -j 4 && \
+    make -j 4 install && \
     rm -rf /repos
 
 ADD mvcmds /mvcmds
@@ -45,4 +45,3 @@ ADD mvcmds /mvcmds
 ENV DEPTHAI_MODEL_NAME depthai
 ENV DEPTHAI_LEVEL debug
 ENTRYPOINT DEPTHAI_DEVICE_BINARY=/mvcmds/$DEPTHAI_MODEL_NAME.mvcmd /build/depthai_tof_demo/depthai-tof-demo
-
