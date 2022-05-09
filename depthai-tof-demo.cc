@@ -338,7 +338,7 @@ int main(int argc, char **argv) {
     rgbPicture->setBoardSocket(rgb_socket);
     //rgbPicture->setImageOrientation(dai::CameraImageOrientation::ROTATE_180_DEG);
 
-    std::list<std::pair<std::string, typeof(rgbPicture->isp) *>> outs = {
+    std::list<std::pair<std::string, decltype(rgbPicture->isp) *>> outs = {
             {"depth",     &tof->out},
             {"amplitude", &tof->amp_out},
             {"raw",       &xinPicture->raw},

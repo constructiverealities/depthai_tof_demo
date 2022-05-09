@@ -33,8 +33,16 @@ jobs:
       id: flags
       run: echo "::set-output name=SETUP_PY_FLAGS::-G 'Visual Studio 16 2019'"
 
+    - name: Cache multiple paths
+      uses: actions/cache@v3
+      with:
+        path: |
+          c:/.hunter
+          c:/opt/chocolatey
+        key: ${{ runner.os }}-depthai_tof_demo
+
     - name: install opencv
-      run: choco install opencv
+      run: choco upgrade opencv --execution-timeout=0      --no-progress
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -57,7 +65,7 @@ jobs:
 
     - name: Bundle
       if: matrix.build_type == 'Release'
-      working-directory: ${{runner.workspace}}/depthai-tof-demo
+      working-directory: ${{runner.workspace}}
       run: 7z a ${{runner.workspace}}/build/${{ steps.bundle.outputs.BUNDLE_FILE_NAME }} ${{runner.workspace}}/build/install_root/*
 
     - uses: actions/upload-artifact@v2
