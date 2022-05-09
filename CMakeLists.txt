@@ -26,3 +26,8 @@ include_directories( ${OpenCV_INCLUDE_DIRS} )
 add_executable(depthai-tof-demo depthai-tof-demo.cc)
 target_link_libraries(depthai-tof-demo depthai::opencv ${OpenCV_LIBS})
 install(TARGETS depthai-tof-demo DESTINATION bin)
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/mvcmds DESTINATION bin/mvcmds)
+
+if(WIN32)
+  install(FILES depthai-tof-demo-5fps.bat depthai-tof-demo-30fps.bat DESTINATION bin)
+endif()
