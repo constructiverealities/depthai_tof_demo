@@ -69,7 +69,6 @@ void fill_pointcloud_map(const float* lp, float* pc_map) {
 
 float ext_scale = .01;
 
-#define RESTRICT_PTR *__restrict__
 static inline void transform_point(const std::vector<std::vector<float>>& tx, const float *xyz, float *tx_xyz) {
     float X = xyz[0], Y = xyz[1], Z = xyz[2];
     tx_xyz[0] = tx[0][0]*X + tx[0][1]*Y + tx[0][2]*Z + tx[0][3] * ext_scale;
@@ -77,8 +76,8 @@ static inline void transform_point(const std::vector<std::vector<float>>& tx, co
     tx_xyz[2] = tx[2][0]*X + tx[2][1]*Y + tx[2][2]*Z + tx[2][3] * ext_scale;
 }
 
-static inline void project_points(const float RESTRICT_PTR lp, const float  RESTRICT_PTR xyz,
-                                  float RESTRICT_PTR uv) {
+static inline void project_points(const float * lp, const float  * xyz,
+                                  float * uv) {
     const float fx = lp[0], fy = lp[1], cx = lp[2], cy = lp[3];
 
     float x = xyz[0], y = xyz[1], z = xyz[2];
@@ -149,7 +148,7 @@ std::vector<float> create_lp(const std::vector<std::vector<float>>& k, const std
     return rtn;
 }
 
-static inline void xyz_from_depth(float depth, const float RESTRICT_PTR zxy, float RESTRICT_PTR  xyz) {
+static inline void xyz_from_depth(float depth, const float * zxy, float *  xyz) {
     float z_scale = /*zxy[0]*/1, nx_over_z = zxy[1], ny_over_z = zxy[2];
     const float z = fmax(0, depth * z_scale);
 
