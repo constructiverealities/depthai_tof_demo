@@ -1,9 +1,5 @@
 name: Build 
 
-defaults:
-  run:
-    shell: bash
-
 on:
   pull_request:
   push:
@@ -36,34 +32,9 @@ jobs:
       if: contains(matrix.os, 'windows') && matrix.build_type == 'Release'
       id: flags
       run: echo "::set-output name=SETUP_PY_FLAGS::-G 'Visual Studio 16 2019'"
-    - name: Restore vcpkg and its artifacts.
-      uses: actions/cache@v2
-      id: vcpkg-cache
-      with:
-        path: |
-          ${{ env.VCPKG_ROOT }}
-          ${{ github.workspace }}/build/vcpkg_installed
-          !${{ env.VCPKG_ROOT }}/.git
-          !${{ env.VCPKG_ROOT }}/buildtrees
-          !${{ env.VCPKG_ROOT }}/packages
-          !${{ env.VCPKG_ROOT }}/downloads
-        key: |
-          ${{ hashFiles( 'vcpkg.json' ) }}-cache-key-v1
 
-    - name: Get vcpkg(windows)
-      if: ${{ steps.vcpkg-cache.outputs.cache-hit != 'true' }}  
-      run: |
-        cd $GITHUB_WORKSPACE
-        mkdir build -force
-        git clone https://github.com/Microsoft/vcpkg.git
-        cd vcpkg
-        .\bootstrap-vcpkg.bat
-      
     - name: install opencv
-      if: ${{ steps.vcpkg-cache.outputs.cache-hit != 'true' }}  
-      run: |
-        cd ${{ github.workspace }}
-        vcpkg install opencv:x64-windows
+      run: choco install opencv
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -71,21 +42,14 @@ jobs:
     - name: Configure CMake
       # Use a bash shell so we can use the same syntax for environment variable
       # access regardless of the host operating system
-      shell: bash
+      
       working-directory: ${{runner.workspace}}/build
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_TOOLCHAIN_FILE='$GITHUB_WORKSPACE/vcpkg/scripts/buildsystems/vcpkg.cmake' -DBUILD_DEPTHAI=On -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=install_root ${{matrix.config_flags}}
+      run: cmake ${{ github.workspace }} -DBUILD_DEPTHAI=On -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=install_root -DOpenCV_DIR=C:\tools\opencv\build\x64\vc15\lib ${{matrix.config_flags}}
 
-    - name: Build
+    - name: Build & Install
       working-directory: ${{runner.workspace}}/build
-      shell: bash
       # Execute the build.  You can specify a specific target with "--target <NAME>"
-      run: cmake --build . --config $BUILD_TYPE -v
-    
-    - name: Install
-      working-directory: ${{runner.workspace}}/build
-      shell: bash
-      # Execute the build.  You can specify a specific target with "--target <NAME>"
-      run: cmake --build . --config $BUILD_TYPE --target install
+      run: cmake --build . --config Release -v --target install
 
     - name: Set bundle name
       id: bundle
