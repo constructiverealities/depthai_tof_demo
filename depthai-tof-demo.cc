@@ -223,6 +223,13 @@ int start(dai::Device &device, int argc, char **argv) {
 
       depth_lp = create_lp(depth_intrinsics, depth_distortion);
       rgb_lp = create_lp(rgb_intrinsics, rgb_distortion);
+
+        fprintf(stderr, "Depth LP: ");
+        for(auto c : depth_lp) fprintf(stderr, "%f, ", c);
+        fprintf(stderr, "\nRGB LP: ");
+        for(auto c : rgb_lp) fprintf(stderr, "%f, ", c);
+        fprintf(stderr, "\n");
+
       fill_pointcloud_map(depth_lp.data(), pc_map);
     } catch(std::exception& e) {
       fprintf(stderr, "Error trying to access calibration. Your device must be calibrated for the full visualization. Error: %s\n", e.what());
