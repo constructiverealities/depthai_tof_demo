@@ -1,13 +1,13 @@
 # DepthAI Demo 
 
-This runs a minimal demo for the ToF sensor in DepthAI. 
+This runs a minimal demo for the ToF sensor in DepthAI. It runs both the HQVGA and VGA PMD sensors. 
 
 # Quickstart
 
 `./run-docker.h`
 
 ### Run 5fps:
-`DOCKER_MODEL_NAME=depthai-5fps ./run-docker.h`
+`./run-docker.h --fps 5`
 
 # Requirements
 
@@ -19,11 +19,10 @@ To build in the docker environment, you will need docker installed and your user
 
 With a device plugged in, run the local-built binary or use the `./run_docker.sh` script. Both take the same arguments / environment variables:
 
-### Environment variables
-- DOCKER_MODEL_NAME: Set to `depthai-5fps` to run the sensor in 5FPS mode. Default is 30fps. 
-
 ### Arguments
 - `--right`: The demo assumes the RGB camera is mapped to the 'left' socket on the device. This uses the right socket instead.
 - `--camD`: This uses the 'camD' socket on device for RGB.
 - `--old-ext-cal`: Specify the on-device extrinsics is in mm instead of cm. This is only useful for older development devices which have bugged calibrations.
-
+- `--fps <fps>`: Sets ToF into a specific FPS setting
+- `--invert`: Debug flag that inverts the transform from color to depth.
+- `--flip`: Flip the RGB/registered frames to be 180 degrees their normal orientation.

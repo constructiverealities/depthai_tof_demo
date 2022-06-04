@@ -7,7 +7,7 @@ services:
       - LD_LIBRARY_PATH=/usr/local/lib
       - 'DISPLAY=${DISPLAY}'
     privileged: true
-    image: depthai_tof_demo
+    image: ghcr.io/constructiverealities/depthai_tof_demo:latest
     devices:
       - '/dev:/dev'
     volumes:

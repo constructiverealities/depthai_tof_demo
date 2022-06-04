@@ -6,8 +6,8 @@ include(FetchContent)
 if(BUILD_DEPTHAI)
   FetchContent_Declare(
     depthai-core
-    GIT_REPOSITORY https://github.com/luxonis/depthai-core.git
-    GIT_TAG tof_rgb_mono
+    GIT_REPOSITORY https://github.com/constructiverealities/depthai.git
+    GIT_TAG cr/develop
     )
 
   #FetchContent_MakeAvailable(opencv)
@@ -26,9 +26,9 @@ include_directories( ${OpenCV_INCLUDE_DIRS} )
 add_executable(depthai-tof-demo depthai-tof-demo.cc)
 target_link_libraries(depthai-tof-demo depthai::opencv ${OpenCV_LIBS})
 install(TARGETS depthai-tof-demo DESTINATION bin)
-install(IMPORTED_RUNTIME_ARTIFACTS ${OpenCV_LIBS})
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/mvcmds DESTINATION bin)
 
 if(WIN32)
+  install(IMPORTED_RUNTIME_ARTIFACTS ${OpenCV_LIBS})  
   install(FILES depthai-tof-demo-5fps.bat depthai-tof-demo-30fps.bat DESTINATION bin)
 endif()

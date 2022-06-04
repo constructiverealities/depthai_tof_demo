@@ -4,7 +4,7 @@
 #include <depthai/pipeline/node/ToF.hpp>
 #include <depthai/pipeline/node/Camera.hpp>
 
-bool invert_tx = false, flip = false;
+bool invert_tx = false, flip = true;
 void initUndistortRectifyMap(const float *lp,
                              int height, int width, float *map12) {
     float u0 = lp[2], v0 = lp[3];
@@ -113,8 +113,12 @@ struct DepthaAICamera {
     void publish(const cv::Mat &cvFrame, const cv::Mat *blend = 0) const {
         cv::namedWindow(name, cv::WINDOW_GUI_EXPANDED);
         if (cvFrame.channels() == 3) {
-            cv::imshow(name, cvFrame);
-            lastRGB = cvFrame;
+	  lastRGB = cvFrame;
+	  cv::Mat img_color = cvFrame.clone();
+	  if(flip) {
+	    cv::rotate(img_color, img_color, cv::ROTATE_180);	    
+	  }
+	  cv::imshow(name, img_color);
         } else {
             cv::Mat as8u;
             if(scale > 0) {
@@ -296,21 +300,27 @@ int start(dai::Device &device, int argc, char **argv) {
 
 int main(int argc, char **argv) {
     dai::Pipeline pipeline;
-
+    int fps = 30;
     for (int i = 1; i < argc; i++) {
-        if (std::string(argv[i]) == "--right") {
+      auto arg = std::string(argv[i]);
+        if (arg == "--right") {
             rgb_socket = dai::CameraBoardSocket::RIGHT;
-        } else if (std::string(argv[i]) == "--invert") {
+        } else if (arg == "--invert") {
             invert_tx = true;
-        } else if (std::string(argv[i]) == "--left") {
+	    fprintf(stderr, "Inverting tx\n");	    	    
+        } else if (arg == "--left") {
             rgb_socket = dai::CameraBoardSocket::LEFT;
-        } else if (std::string(argv[i]) == "--camD") {
+        } else if (arg == "--camD") {
             rgb_socket = dai::CameraBoardSocket::CAM_D;
-        } else if (std::string(argv[i]) == "--old-ext-cal") {
+        } else if (arg == "--old-ext-cal") {
             ext_scale = 1;
-        } else if (std::string(argv[i]) == "--flip") {
-            flip = true;
-        }
+        } else if (arg == "--flip") {
+            flip = !flip;
+	    fprintf(stderr, "Flipping outputs\n");	    
+        } else if (arg == "--fps" && argc > i + 1) {
+	  fps = atoi(argv[i+1]);
+	  fprintf(stderr, "Setting FPS to %d\n", fps);
+	}
     }
 
     dai::Device device;
@@ -348,9 +358,11 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    auto xinPicture = pipeline.create<dai::node::Camera>();
+    auto tofCamera = pipeline.create<dai::node::Camera>();
+    tofCamera->setFps(fps);
+    
     auto tof = pipeline.create<dai::node::ToF>();
-
+    
     auto rgbPicture = pipeline.create<dai::node::ColorCamera>();
     rgbPicture->setResolution(dai::ColorCameraProperties::SensorResolution::THE_1080_P);
     rgbPicture->setFps(30);
@@ -361,11 +373,11 @@ int main(int argc, char **argv) {
             {"depth", &tof->out},
             {"amplitude", &tof->amp_out},
             {"error", &tof->err_out},
-            {"raw",   &xinPicture->raw},
+            {"raw",   &tofCamera->raw},
             {"rgb",   &rgbPicture->isp},
     };
 
-    xinPicture->raw.link(tof->inputImage);
+    tofCamera->raw.link(tof->inputImage);
 
     for (auto &kv: outs) {
         auto xoutVideo = pipeline.create<dai::node::XLinkOut>();
