@@ -26,7 +26,6 @@ include_directories( ${OpenCV_INCLUDE_DIRS} )
 add_executable(depthai-tof-demo depthai-tof-demo.cc)
 target_link_libraries(depthai-tof-demo depthai::opencv ${OpenCV_LIBS})
 install(TARGETS depthai-tof-demo DESTINATION bin)
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/mvcmds DESTINATION bin)
 
 if(WIN32)
   install(IMPORTED_RUNTIME_ARTIFACTS ${OpenCV_LIBS})  
