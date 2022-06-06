@@ -197,8 +197,6 @@ dai::CameraBoardSocket tof_socket = dai::CameraBoardSocket::CENTER;
 float *pc_map = 0;
 
 int start(dai::Device &device, int argc, char **argv, double fps) {
-
-    auto cnow = std::chrono::steady_clock::now();
     std::vector<std::shared_ptr<DepthaAICamera>> sockets = {
             std::make_shared<DepthaAICamera>("rgb"),
             //std::make_shared<DepthaAICamera>("raw"),
@@ -262,6 +260,7 @@ int start(dai::Device &device, int argc, char **argv, double fps) {
         tofCamera->setFps(fps);
 
         auto tof = pipeline.create<dai::node::ToF>();
+        tofCamera->raw.link(tof->inputImage);
 
         std::list<std::pair<std::string, decltype(tof->out) *>> outs = {
                 {"depth",     &tof->out},
@@ -279,8 +278,6 @@ int start(dai::Device &device, int argc, char **argv, double fps) {
             outs.push_back(std::make_pair("rgb",&rgbPicture->isp));
         }
 
-        tofCamera->raw.link(tof->inputImage);
-
         for (auto &kv: outs) {
             auto xoutVideo = pipeline.create<dai::node::XLinkOut>();
             xoutVideo->setStreamName(kv.first);
@@ -295,11 +292,14 @@ int start(dai::Device &device, int argc, char **argv, double fps) {
 
     std::map<std::string, double> latency;
     for (auto &n: names) {
-        namedStreams[n] = device.getOutputQueue(n, 1, false);
+        namedStreams[n] = device.getOutputQueue(n, 4, false);
     }
 
+    auto last_time = std::chrono::steady_clock::now();
+    std::map<std::string, int> perf_count;
+
     while (!device.isClosed()) {
-        auto ch = cv::waitKey(5);
+        auto ch = cv::waitKey(1);
         if (ch == 'q' || ch == 'Q') break;
 
         auto event = device.getQueueEvent(names, std::chrono::milliseconds(100));
@@ -308,7 +308,19 @@ int start(dai::Device &device, int argc, char **argv, double fps) {
         }
         auto data = namedStreams[event]->tryGet<dai::ImgFrame>();
 
+        auto now = std::chrono::steady_clock::now();
+        auto time_diff = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count();
+        if(time_diff > 3000) {
+            for(auto n : namedStreams) {
+                fprintf(stderr, "%16s %3d cnt %7.3f fps\n", n.first.c_str(), perf_count[n.first], perf_count[n.first] / (float)time_diff * 1000.);
+                perf_count[n.first] = 0;
+            }
+            last_time = now;
+        }
+
         if (data) {
+            perf_count[event]++;
+
             cv::Mat cvFrame;
             std::string encoding;
             {
@@ -341,6 +353,7 @@ int start(dai::Device &device, int argc, char **argv, double fps) {
 
 int main(int argc, char **argv) {
     int fps = 30;
+
     for (int i = 1; i < argc; i++) {
         auto arg = std::string(argv[i]);
         if (arg == "--right") {
@@ -367,6 +380,13 @@ int main(int argc, char **argv) {
     }
 
     dai::Device device;
+
+    if(device.getUsbSpeed() < dai::UsbSpeed::SUPER) {
+        fprintf(stderr, "REFUSING TO USE THE DEVICE; USB SPEED IS %d", (int)device.getUsbSpeed());
+        return -2;
+    }
+    fprintf(stderr, "Usb speed is %d\n", (int)device.getUsbSpeed());
+
     dai::CameraBoardSocket possible_rgb_socket = dai::CameraBoardSocket::AUTO;
     bool rgbSocketFound = false;
     for (auto &feature: device.getConnectedCameraFeatures()) {
