@@ -245,7 +245,13 @@ int start(dai::Device &device, int argc, char **argv) {
         for (auto c: depth_lp) fprintf(stderr, "%f, ", c);
         fprintf(stderr, "\nRGB LP: ");
         for (auto c: rgb_lp) fprintf(stderr, "%f, ", c);
+        fprintf(stderr, "\nTx: ");
+        for (auto t: tx) {
+            for (auto v: t) fprintf(stderr, "%f, ", v);
+            fprintf(stderr, "\n");
+        }
         fprintf(stderr, "\n");
+
 
         pc_map = new float[3 * tof_data.width * tof_data.height]();
         fill_pointcloud_map(depth_lp.data(), pc_map, tof_data.width, tof_data.height);
