@@ -392,7 +392,7 @@ int main(int argc, char **argv) {
     }
 
     device.startPipeline(pipeline);
-    //device.setLogLevel(dai::LogLevel::INFO);
+    device.setLogLevel(dai::LogLevel::INFO);
 
     return start(device, argc, argv);
 }
