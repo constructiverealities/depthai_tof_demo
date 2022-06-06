@@ -4,7 +4,7 @@
 #include <depthai/pipeline/node/ToF.hpp>
 #include <depthai/pipeline/node/Camera.hpp>
 
-bool invert_tx = false, flip = true;
+bool invert_tx = false, flip = true, norgb = false;
 void initUndistortRectifyMap(const float *lp,
                              int height, int width, float *map12) {
     float u0 = lp[2], v0 = lp[3];
@@ -196,7 +196,7 @@ dai::CameraBoardSocket tof_socket = dai::CameraBoardSocket::CENTER;
 
 float *pc_map = 0;
 
-int start(dai::Device &device, int argc, char **argv) {
+int start(dai::Device &device, int argc, char **argv, double fps) {
 
     auto cnow = std::chrono::steady_clock::now();
     std::vector<std::shared_ptr<DepthaAICamera>> sockets = {
@@ -213,14 +213,6 @@ int start(dai::Device &device, int argc, char **argv) {
     std::map<std::string, std::shared_ptr<DepthaAICamera>> cameras;
     for (auto &s: sockets) {
         cameras[s->name] = s;
-    }
-
-    auto names = device.getOutputQueueNames();
-    std::map<std::string, std::shared_ptr<dai::DataOutputQueue>> namedStreams;
-
-    std::map<std::string, double> latency;
-    for (auto &n: names) {
-        namedStreams[n] = device.getOutputQueue(n, 1, false);
     }
 
     auto calibration = device.readCalibration();
@@ -262,6 +254,49 @@ int start(dai::Device &device, int argc, char **argv) {
     }
 
     int width = 0, height = 0;
+
+
+    {
+        dai::Pipeline pipeline;
+        auto tofCamera = pipeline.create<dai::node::Camera>();
+        tofCamera->setFps(fps);
+
+        auto tof = pipeline.create<dai::node::ToF>();
+
+        std::list<std::pair<std::string, decltype(tof->out) *>> outs = {
+                {"depth",     &tof->out},
+                {"amplitude", &tof->amp_out},
+                {"error",     &tof->err_out},
+                {"raw",       &tofCamera->raw},
+        };
+
+        if(!norgb) {
+            auto rgbPicture = pipeline.create<dai::node::ColorCamera>();
+            rgbPicture->setResolution(dai::ColorCameraProperties::SensorResolution::THE_1080_P);
+            rgbPicture->setFps(30);
+            rgbPicture->initialControl.setManualFocus(135);
+            rgbPicture->setBoardSocket(rgb_socket);
+            outs.push_back(std::make_pair("rgb",&rgbPicture->isp));
+        }
+
+        tofCamera->raw.link(tof->inputImage);
+
+        for (auto &kv: outs) {
+            auto xoutVideo = pipeline.create<dai::node::XLinkOut>();
+            xoutVideo->setStreamName(kv.first);
+            kv.second->link(xoutVideo->input);
+        }
+
+        device.startPipeline(pipeline);
+    }
+
+    auto names = device.getOutputQueueNames();
+    std::map<std::string, std::shared_ptr<dai::DataOutputQueue>> namedStreams;
+
+    std::map<std::string, double> latency;
+    for (auto &n: names) {
+        namedStreams[n] = device.getOutputQueue(n, 1, false);
+    }
 
     while (!device.isClosed()) {
         auto ch = cv::waitKey(5);
@@ -305,15 +340,17 @@ int start(dai::Device &device, int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-    dai::Pipeline pipeline;
     int fps = 30;
     for (int i = 1; i < argc; i++) {
-      auto arg = std::string(argv[i]);
+        auto arg = std::string(argv[i]);
         if (arg == "--right") {
             rgb_socket = dai::CameraBoardSocket::RIGHT;
         } else if (arg == "--invert") {
             invert_tx = true;
-	    fprintf(stderr, "Inverting tx\n");	    	    
+            fprintf(stderr, "Inverting tx\n");
+        } else if (arg == "--no-rgb") {
+            norgb = true;
+            fprintf(stderr, "Setting norgb flag tx\n");
         } else if (arg == "--left") {
             rgb_socket = dai::CameraBoardSocket::LEFT;
         } else if (arg == "--camD") {
@@ -322,11 +359,11 @@ int main(int argc, char **argv) {
             ext_scale = 1;
         } else if (arg == "--flip") {
             flip = !flip;
-	    fprintf(stderr, "Flipping outputs\n");	    
+            fprintf(stderr, "Flipping outputs\n");
         } else if (arg == "--fps" && argc > i + 1) {
-	  fps = atoi(argv[i+1]);
-	  fprintf(stderr, "Setting FPS to %d\n", fps);
-	}
+            fps = atoi(argv[i + 1]);
+            fprintf(stderr, "Setting FPS to %d\n", fps);
+        }
     }
 
     dai::Device device;
@@ -364,35 +401,5 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    auto tofCamera = pipeline.create<dai::node::Camera>();
-    tofCamera->setFps(fps);
-    
-    auto tof = pipeline.create<dai::node::ToF>();
-    
-    auto rgbPicture = pipeline.create<dai::node::ColorCamera>();
-    rgbPicture->setResolution(dai::ColorCameraProperties::SensorResolution::THE_1080_P);
-    rgbPicture->setFps(30);
-    rgbPicture->initialControl.setManualFocus(135);
-    rgbPicture->setBoardSocket(rgb_socket);
-
-    std::list<std::pair<std::string, decltype(rgbPicture->isp) *>> outs = {
-            {"depth", &tof->out},
-            {"amplitude", &tof->amp_out},
-            {"error", &tof->err_out},
-            {"raw",   &tofCamera->raw},
-            {"rgb",   &rgbPicture->isp},
-    };
-
-    tofCamera->raw.link(tof->inputImage);
-
-    for (auto &kv: outs) {
-        auto xoutVideo = pipeline.create<dai::node::XLinkOut>();
-        xoutVideo->setStreamName(kv.first);
-        kv.second->link(xoutVideo->input);
-    }
-
-    device.startPipeline(pipeline);
-    device.setLogLevel(dai::LogLevel::INFO);
-
-    return start(device, argc, argv);
+    return start(device, argc, argv, fps);
 }
