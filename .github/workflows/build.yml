@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build_type: [Release]
+        build_type: [RelWithDebInfo]
         os: [windows-latest]
     steps:
     - uses: actions/checkout@v2
@@ -39,6 +39,7 @@ jobs:
         path: |
           c:/.hunter
           c:/opt/chocolatey
+          c:/tools
         key: ${{ runner.os }}-depthai_tof_demo
 
     - name: install opencv
@@ -57,7 +58,7 @@ jobs:
     - name: Build & Install
       working-directory: ${{runner.workspace}}/build
       # Execute the build.  You can specify a specific target with "--target <NAME>"
-      run: cmake --build . --config Release -v --target install
+      run: cmake --build . --config $BUILD_TYPE -v --target install
 
     - name: Set bundle name
       id: bundle

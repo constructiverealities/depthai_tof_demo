@@ -5,6 +5,8 @@
 #include <depthai/pipeline/node/Camera.hpp>
 
 bool invert_tx = false, flip = true, norgb = false;
+bool output_error = false, output_amplitude = false;
+
 void initUndistortRectifyMap(const float *lp,
                              int height, int width, float *map12) {
     float u0 = lp[2], v0 = lp[3];
@@ -198,14 +200,20 @@ float *pc_map = 0;
 
 int start(dai::Device &device, int argc, char **argv, double fps) {
     std::vector<std::shared_ptr<DepthaAICamera>> sockets = {
-            std::make_shared<DepthaAICamera>("rgb"),
-            //std::make_shared<DepthaAICamera>("raw"),
             std::make_shared<DepthaAICamera>("depth", 3000),
-            std::make_shared<DepthaAICamera>("error"),
             std::make_shared<DepthaAICamera>("registered_depth", 3000),
-            std::make_shared<DepthaAICamera>("amplitude"),
             //std::make_shared<DepthaAICamera>("error"),
     };
+
+    if(!norgb) {
+        sockets.push_back(std::make_shared<DepthaAICamera>("rgb"));
+    }
+    if(output_error) {
+        sockets.push_back(std::make_shared<DepthaAICamera>("error"));
+    }
+    if(output_amplitude) {
+        sockets.push_back(std::make_shared<DepthaAICamera>("amplitude"));
+    }
 
     std::shared_ptr<DepthaAICamera> rgb_camera = sockets[0];
     std::map<std::string, std::shared_ptr<DepthaAICamera>> cameras;
@@ -264,10 +272,15 @@ int start(dai::Device &device, int argc, char **argv, double fps) {
 
         std::list<std::pair<std::string, decltype(tof->out) *>> outs = {
                 {"depth",     &tof->out},
-                {"amplitude", &tof->amp_out},
-                {"error",     &tof->err_out},
-                {"raw",       &tofCamera->raw},
         };
+
+        if(output_error) {
+            outs.push_back(std::make_pair("error", &tof->err_out));
+        }
+
+        if(output_amplitude) {
+            outs.push_back(std::make_pair("amplitude", &tof->amp_out));
+        }
 
         if(!norgb) {
             auto rgbPicture = pipeline.create<dai::node::ColorCamera>();
@@ -373,6 +386,10 @@ int main(int argc, char **argv) {
         } else if (arg == "--flip") {
             flip = !flip;
             fprintf(stderr, "Flipping outputs\n");
+        } else if (arg == "--amplitude") {
+            output_amplitude = true;
+        } else if (arg == "--error") {
+            output_error = true;
         } else if (arg == "--fps" && argc > i + 1) {
             fps = atoi(argv[i + 1]);
             fprintf(stderr, "Setting FPS to %d\n", fps);
