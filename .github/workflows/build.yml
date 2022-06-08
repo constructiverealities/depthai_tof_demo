@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build_type: [RelWithDebInfo]
+        build_type: [Release, RelWithDebInfo, Debug]
         os: [windows-latest]
     steps:
     - uses: actions/checkout@v2
@@ -53,25 +53,23 @@ jobs:
       # access regardless of the host operating system
       
       working-directory: ${{runner.workspace}}/build
-      run: cmake ${{ github.workspace }} -DBUILD_DEPTHAI=On -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_INSTALL_PREFIX=install_root -DOpenCV_DIR=C:\tools\opencv\build\x64\vc15\lib ${{matrix.config_flags}}
+      run: cmake ${{ github.workspace }} -DBUILD_DEPTHAI=On -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_INSTALL_PREFIX=install_root -DOpenCV_DIR=C:\tools\opencv\build\x64\vc15\lib ${{matrix.config_flags}}
 
     - name: Build & Install
       working-directory: ${{runner.workspace}}/build
       # Execute the build.  You can specify a specific target with "--target <NAME>"
-      run: cmake --build . --config $BUILD_TYPE -v --target install
+      run: cmake --build . --config ${{ matrix.build_type }} -v --target install
 
     - name: Set bundle name
       id: bundle
       run: echo "::set-output name=BUNDLE_FILE_NAME::depthai-tof-demo-$(git describe --tags --always)-${{ matrix.os }}.zip"
 
     - name: Bundle
-      if: matrix.build_type == 'Release'
       working-directory: ${{runner.workspace}}
       run: 7z a ${{runner.workspace}}/build/${{ steps.bundle.outputs.BUNDLE_FILE_NAME }} ${{runner.workspace}}/build/install_root/*
 
     - uses: actions/upload-artifact@v2
       name: Upload
-      if: matrix.build_type == 'Release'
       with:
         name: depthai-tof-demo-${{ matrix.os }}-${{ matrix.build_type }}
         path: | 
