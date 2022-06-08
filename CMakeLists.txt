@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 
+set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO "RelWithDebInfo;Release;")
+
 option(BUILD_DEPTHAI "Build all relevant dependencies" OFF)
 
 include(FetchContent)
@@ -29,4 +31,5 @@ install(TARGETS depthai-tof-demo DESTINATION bin)
 if(WIN32)
   install(IMPORTED_RUNTIME_ARTIFACTS ${OpenCV_LIBS})  
   install(FILES depthai-tof-demo-5fps.bat depthai-tof-demo-30fps.bat DESTINATION bin)
+  install(FILES $<TARGET_PDB_FILE:depthai-tof-demo> DESTINATION bin OPTIONAL)
 endif()
