@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build_type: [Release, RelWithDebInfo, Debug]
+        build_type: [Release, RelWithDebInfo]
         os: [windows-latest]
     steps:
     - uses: actions/checkout@v2
@@ -29,7 +29,7 @@ jobs:
       with:
         python-version: '3.x'
     - name: Setup windows flags
-      if: contains(matrix.os, 'windows') && matrix.build_type == 'Release'
+      if: contains(matrix.os, 'windows')
       id: flags
       run: echo "::set-output name=SETUP_PY_FLAGS::-G 'Visual Studio 16 2019'"
 

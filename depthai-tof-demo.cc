@@ -270,6 +270,11 @@ int start(dai::Device &device, int argc, char **argv, double fps) {
         auto tof = pipeline.create<dai::node::ToF>();
         tofCamera->raw.link(tof->inputImage);
 
+        if(auto tof_filter_config = std::getenv("CR_TOF_FILTER_CONFIG")) {
+            tof->setFilterConfig(tof_filter_config);
+            tof->initialConfig.get().useLoadedFilter = 1;
+        }
+
         std::list<std::pair<std::string, decltype(tof->out) *>> outs = {
                 {"depth",     &tof->out},
         };
