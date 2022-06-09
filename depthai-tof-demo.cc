@@ -443,5 +443,10 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    return start(device, argc, argv, fps);
+    try {
+        return start(device, argc, argv, fps);
+    } catch(const std::exception& e) {
+        fprintf(stderr, "Exception encountered: %s", e.what());
+        return -1;
+    }
 }
