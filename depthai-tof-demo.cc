@@ -198,7 +198,7 @@ dai::CameraBoardSocket tof_socket = dai::CameraBoardSocket::CENTER;
 
 float *pc_map = 0;
 
-int start(dai::Device &device, int argc, char **argv, double fps) {
+int start(dai::Device &device, int argc, char **argv, double fps, const std::string& filter_config, float amp_filter) {
     std::vector<std::shared_ptr<DepthaAICamera>> sockets = {
             std::make_shared<DepthaAICamera>("depth", 3000),
             std::make_shared<DepthaAICamera>("registered_depth", 3000),
@@ -272,8 +272,11 @@ int start(dai::Device &device, int argc, char **argv, double fps) {
 
         if(auto tof_filter_config = std::getenv("CR_TOF_FILTER_CONFIG")) {
             tof->setFilterConfig(tof_filter_config);
-            tof->initialConfig.get().useLoadedFilter = 1;
         }
+
+        auto configIn = tof->getParentPipeline().template create<dai::node::XLinkIn>();
+        configIn->setStreamName( "tof_inputControl");
+        configIn->out.link(tof->inputConfig);
 
         std::list<std::pair<std::string, decltype(tof->out) *>> outs = {
                 {"depth",     &tof->out},
@@ -304,6 +307,20 @@ int start(dai::Device &device, int argc, char **argv, double fps) {
 
         device.startPipeline(pipeline);
     }
+
+    auto configQueue = device.getInputQueue("tof_inputControl");
+
+    dai::ToFConfig tofCfg;
+    tofCfg.get().albedoCutoffAmplitude = 50;
+    tofCfg.get().maxAlbedo = 2000;
+    tofCfg.get().minAlbedo = 30;
+    tofCfg.get().maxAsymmetry = 0;
+    tofCfg.get().maxDistance = 5;
+    tofCfg.get().minDistance = 0;
+    tofCfg.get().minAmplitude = amp_filter;
+    tofCfg.get().maxError = 0.1;
+    tofCfg.get().useLoadedFilter = true;
+    configQueue->send(tofCfg);
 
     auto names = device.getOutputQueueNames();
     std::map<std::string, std::shared_ptr<dai::DataOutputQueue>> namedStreams;
@@ -371,7 +388,9 @@ int start(dai::Device &device, int argc, char **argv, double fps) {
 
 int main(int argc, char **argv) {
     int fps = 30;
+    std::string filter_config = std::getenv("CR_TOF_FILTER_CONFIG");
 
+    float amp_filter = 20;
     for (int i = 1; i < argc; i++) {
         auto arg = std::string(argv[i]);
         if (arg == "--right") {
@@ -398,6 +417,11 @@ int main(int argc, char **argv) {
         } else if (arg == "--fps" && argc > i + 1) {
             fps = atoi(argv[i + 1]);
             fprintf(stderr, "Setting FPS to %d\n", fps);
+        } else if (arg == "--adv-filter-config") {
+            filter_config = argv[i+1];
+        } else if (arg == "--amplitude-filter") {
+            amp_filter = atof(argv[i+1]);
+            fprintf(stderr, "Setting amplitude filter to to %f\n", amp_filter);
         }
     }
 
@@ -444,7 +468,7 @@ int main(int argc, char **argv) {
     }
 
     try {
-        return start(device, argc, argv, fps);
+        return start(device, argc, argv, fps, filter_config, amp_filter);
     } catch(const std::exception& e) {
         fprintf(stderr, "Exception encountered: %s", e.what());
         return -1;
