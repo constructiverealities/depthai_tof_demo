@@ -270,8 +270,8 @@ int start(dai::Device &device, int argc, char **argv, double fps, const std::str
         auto tof = pipeline.create<dai::node::ToF>();
         tofCamera->raw.link(tof->inputImage);
 
-        if(auto tof_filter_config = std::getenv("CR_TOF_FILTER_CONFIG")) {
-            tof->setFilterConfig(tof_filter_config);
+        if(!filter_config.empty()) {
+            tof->setFilterConfig(filter_config);
         }
 
         auto configIn = tof->getParentPipeline().template create<dai::node::XLinkIn>();
@@ -388,7 +388,10 @@ int start(dai::Device &device, int argc, char **argv, double fps, const std::str
 
 int main(int argc, char **argv) {
     int fps = 30;
-    std::string filter_config = std::getenv("CR_TOF_FILTER_CONFIG");
+    std::string filter_config = "";
+    if(char* cfg = std::getenv("CR_TOF_FILTER_CONFIG")) {
+        filter_config = cfg;
+    }
 
     float amp_filter = 20;
     for (int i = 1; i < argc; i++) {
