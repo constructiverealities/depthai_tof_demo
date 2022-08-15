@@ -115,15 +115,14 @@ struct DepthaAICamera {
     void publish(const cv::Mat &cvFrame, const cv::Mat *blend = 0) const {
         cv::namedWindow(name, cv::WINDOW_GUI_EXPANDED);
         if (cvFrame.channels() == 3) {
-	  lastRGB = cvFrame;
-	  cv::Mat img_color = cvFrame.clone();
-	  if(flip) {
-	    cv::rotate(img_color, img_color, cv::ROTATE_180);	    
-	  }
-	  cv::imshow(name, img_color);
+            cv::Mat img_color = cvFrame.clone();
+            if (flip) {
+                cv::rotate(img_color, img_color, cv::ROTATE_180);
+            }
+            cv::imshow(name, img_color);
         } else {
             cv::Mat as8u;
-            if(scale > 0) {
+            if (scale > 0) {
                 cv::convertScaleAbs(cvFrame, as8u, 1 / scale * 255., 0);
             } else {
                 cv::normalize(cvFrame, as8u, 0, 255, cv::NORM_MINMAX, CV_8U);
@@ -138,7 +137,7 @@ struct DepthaAICamera {
             if (blend && blend->data)
                 addWeighted(img_color, .5, *blend, .5, 0.0, img_color);
 
-            if(flip) {
+            if (flip) {
                 cv::rotate(img_color, img_color, cv::ROTATE_180);
             }
             cv::imshow(name, img_color);
@@ -170,14 +169,14 @@ static inline void xyz_from_depth(float depth, const float *zxy, float *xyz) {
 cv::Mat registerDepth(const cv::Mat &depth, const float *pc_map, const std::vector<std::vector<float>> &tx,
                       const std::vector<float> &depth_lp, const std::vector<float> &rgb_lp, int height, int width,
                       float scale) {
-    cv::Mat_<uint16_t> registeredDepth = cv::Mat_<uint16_t>::zeros(height / scale, width / scale);
+    cv::Mat_<uint16_t> registeredDepth = cv::Mat_<uint16_t>::zeros(height / scale, width / scale) + 65536;
     auto scaled_rgb = rgb_lp;
     for (int i = 0; i < 4; i++) scaled_rgb[i] = rgb_lp[i] / scale;
 
     for (int i = 0; i < depth.cols; i++) {
         for (int j = 0; j < depth.rows; j++) {
             uint16_t d = depth.at<uint16_t>(j, i);
-            if (d == 0) continue;
+
             float xyz[3];
             float uv[2];
             xyz_from_depth(d / 1000., pc_map + 3 * (i + j * depth.cols), xyz);
@@ -198,20 +197,22 @@ dai::CameraBoardSocket tof_socket = dai::CameraBoardSocket::CENTER;
 
 float *pc_map = 0;
 
-int start(dai::Device &device, int argc, char **argv, double fps, const std::string& filter_config, float amp_filter) {
+int start(dai::Device &device, int argc, char **argv, double fps, const std::string &filter_config, float amp_filter,
+          float greenscreen_depth) {
     std::vector<std::shared_ptr<DepthaAICamera>> sockets = {
             std::make_shared<DepthaAICamera>("depth", 3000),
             std::make_shared<DepthaAICamera>("registered_depth", 3000),
+            std::make_shared<DepthaAICamera>("greenscreen"),
             //std::make_shared<DepthaAICamera>("error"),
     };
 
-    if(!norgb) {
+    if (!norgb) {
         sockets.push_back(std::make_shared<DepthaAICamera>("rgb"));
     }
-    if(output_error) {
+    if (output_error) {
         sockets.push_back(std::make_shared<DepthaAICamera>("error"));
     }
-    if(output_amplitude) {
+    if (output_amplitude) {
         sockets.push_back(std::make_shared<DepthaAICamera>("amplitude"));
     }
 
@@ -231,7 +232,8 @@ int start(dai::Device &device, int argc, char **argv, double fps, const std::str
         auto depth_distortion = calibration.getDistortionCoefficients(tof_socket);
         auto rgb_intrinsics = calibration.getCameraIntrinsics(rgb_socket);
         auto rgb_distortion = calibration.getDistortionCoefficients(rgb_socket);
-        tx = !invert_tx ? calibration.getCameraExtrinsics(tof_socket, rgb_socket) : calibration.getCameraExtrinsics(rgb_socket, tof_socket);
+        tx = !invert_tx ? calibration.getCameraExtrinsics(tof_socket, rgb_socket) : calibration.getCameraExtrinsics(
+                rgb_socket, tof_socket);
 
         auto tof_data = eepromData.cameraData[tof_socket];
         auto rgb_data = eepromData.cameraData[rgb_socket];
@@ -270,33 +272,33 @@ int start(dai::Device &device, int argc, char **argv, double fps, const std::str
         auto tof = pipeline.create<dai::node::ToF>();
         tofCamera->raw.link(tof->inputImage);
 
-        if(!filter_config.empty()) {
+        if (!filter_config.empty()) {
             tof->setFilterConfig(filter_config);
         }
 
         auto configIn = tof->getParentPipeline().template create<dai::node::XLinkIn>();
-        configIn->setStreamName( "tof_inputControl");
+        configIn->setStreamName("tof_inputControl");
         configIn->out.link(tof->inputConfig);
 
         std::list<std::pair<std::string, decltype(tof->out) *>> outs = {
-                {"depth",     &tof->out},
+                {"depth", &tof->out},
         };
 
-        if(output_error) {
+        if (output_error) {
             outs.push_back(std::make_pair("error", &tof->err_out));
         }
 
-        if(output_amplitude) {
+        if (output_amplitude) {
             outs.push_back(std::make_pair("amplitude", &tof->amp_out));
         }
 
-        if(!norgb) {
+        if (!norgb) {
             auto rgbPicture = pipeline.create<dai::node::ColorCamera>();
             rgbPicture->setResolution(dai::ColorCameraProperties::SensorResolution::THE_1080_P);
             rgbPicture->setFps(30);
             rgbPicture->initialControl.setManualFocus(135);
             rgbPicture->setBoardSocket(rgb_socket);
-            outs.push_back(std::make_pair("rgb",&rgbPicture->isp));
+            outs.push_back(std::make_pair("rgb", &rgbPicture->isp));
         }
 
         for (auto &kv: outs) {
@@ -345,9 +347,10 @@ int start(dai::Device &device, int argc, char **argv, double fps, const std::str
 
         auto now = std::chrono::steady_clock::now();
         auto time_diff = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count();
-        if(time_diff > 3000) {
-            for(auto n : namedStreams) {
-                fprintf(stderr, "%16s %3d cnt %7.3f fps\n", n.first.c_str(), perf_count[n.first], perf_count[n.first] / (float)time_diff * 1000.);
+        if (time_diff > 3000) {
+            for (auto n: namedStreams) {
+                fprintf(stderr, "%16s %3d cnt %7.3f fps\n", n.first.c_str(), perf_count[n.first],
+                        perf_count[n.first] / (float) time_diff * 1000.);
                 perf_count[n.first] = 0;
             }
             last_time = now;
@@ -373,12 +376,32 @@ int start(dai::Device &device, int argc, char **argv, double fps, const std::str
             if (event == "rgb") {
                 width = cvFrame.cols;
                 height = cvFrame.rows;
+                lastRGB = cvFrame;
             }
-            if (width != 0 && event == "depth" && cvFrame.rows > 1 && cvFrame.cols > 1 && !tx.empty()) {
+            if (width != 0 && event == "depth" && cvFrame.rows > 1 && cvFrame.cols > 1 && !tx.empty() && !lastRGB.empty()) {
                 auto registered_depth = registerDepth(cvFrame, pc_map, tx, depth_lp, rgb_lp, height, width, 4);
                 cv::Mat downsample;
                 cv::resize(lastRGB, downsample, cv::Size(registered_depth.cols, registered_depth.rows));
                 cameras["registered_depth"]->publish(registered_depth, &downsample);
+
+                if (greenscreen_depth > 0) {
+                    cv::Mat_<uint8_t> mask(registered_depth.rows, registered_depth.cols);
+                    cv::Mat_<uint8_t> bmask(registered_depth.rows, registered_depth.cols);
+                    cv::convertScaleAbs(registered_depth, mask, 1. / greenscreen_depth, 0);
+                    double rdMin, rdMax, mMin, mMax;
+
+                    cv::minMaxLoc(registered_depth, &rdMin, &rdMax);
+                    cv::minMaxLoc(mask, &mMin, &mMax);
+                    cv::threshold(mask, mask, 1, 1, cv::THRESH_BINARY_INV);
+
+                    cv::blur(mask, bmask, cv::Size(5,5));
+
+                    cv::Mat m =
+                            cv::Mat::zeros(downsample.rows, downsample.cols, lastRGB.type()) + cv::Scalar(4, 244, 4);
+                    downsample.copyTo(m, bmask);
+
+                    cameras["greenscreen"]->publish(m);
+                }
             }
         }
     }
@@ -389,11 +412,13 @@ int start(dai::Device &device, int argc, char **argv, double fps, const std::str
 int main(int argc, char **argv) {
     int fps = 30;
     std::string filter_config = "";
-    if(char* cfg = std::getenv("CR_TOF_FILTER_CONFIG")) {
+    if (char *cfg = std::getenv("CR_TOF_FILTER_CONFIG")) {
         filter_config = cfg;
     }
 
     float amp_filter = 20;
+    float greenscreen_depth = 0;
+
     for (int i = 1; i < argc; i++) {
         auto arg = std::string(argv[i]);
         if (arg == "--right") {
@@ -421,20 +446,23 @@ int main(int argc, char **argv) {
             fps = atoi(argv[i + 1]);
             fprintf(stderr, "Setting FPS to %d\n", fps);
         } else if (arg == "--adv-filter-config") {
-            filter_config = argv[i+1];
+            filter_config = argv[i + 1];
         } else if (arg == "--amplitude-filter") {
-            amp_filter = atof(argv[i+1]);
+            amp_filter = atof(argv[i + 1]);
             fprintf(stderr, "Setting amplitude filter to to %f\n", amp_filter);
+        } else if (arg == "--greenscreen-depth") {
+            greenscreen_depth = atof(argv[i + 1]);
+            fprintf(stderr, "Setting greenscreen to to %f\n", greenscreen_depth);
         }
     }
 
     dai::Device device;
 
-    if(device.getUsbSpeed() < dai::UsbSpeed::SUPER) {
-        fprintf(stderr, "REFUSING TO USE THE DEVICE; USB SPEED IS %d", (int)device.getUsbSpeed());
+    if (device.getUsbSpeed() < dai::UsbSpeed::SUPER) {
+        fprintf(stderr, "REFUSING TO USE THE DEVICE; USB SPEED IS %d", (int) device.getUsbSpeed());
         return -2;
     }
-    fprintf(stderr, "Usb speed is %d\n", (int)device.getUsbSpeed());
+    fprintf(stderr, "Usb speed is %d\n", (int) device.getUsbSpeed());
 
     dai::CameraBoardSocket possible_rgb_socket = dai::CameraBoardSocket::AUTO;
     bool rgbSocketFound = false;
@@ -471,8 +499,8 @@ int main(int argc, char **argv) {
     }
 
     try {
-        return start(device, argc, argv, fps, filter_config, amp_filter);
-    } catch(const std::exception& e) {
+        return start(device, argc, argv, fps, filter_config, amp_filter, greenscreen_depth);
+    } catch (const std::exception &e) {
         fprintf(stderr, "Exception encountered: %s", e.what());
         return -1;
     }
