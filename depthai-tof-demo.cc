@@ -255,6 +255,7 @@ int start(dai::Device &device, int argc, char **argv, double fps, const std::str
 
         pc_map = new float[3 * tof_data.width * tof_data.height]();
         fill_pointcloud_map(depth_lp.data(), pc_map, tof_data.width, tof_data.height);
+        printf("PC entry 1000: %f %f %f\n", pc_map[1000], pc_map[1001], pc_map[1002]);
     } catch (std::exception &e) {
         fprintf(stderr,
                 "Error trying to access calibration. Your device must be calibrated for the full visualization. Error: %s\n",
