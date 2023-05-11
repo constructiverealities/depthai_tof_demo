@@ -197,6 +197,19 @@ dai::CameraBoardSocket tof_socket = dai::CameraBoardSocket::CENTER;
 
 float *pc_map = 0;
 
+std::string GetSaveDir() {
+    const char* home = getenv("XDG_CONFIG_HOME");
+    if(home && home[0]) return home;
+
+    home = getenv("HOME");
+    if(home && strcmp(home, "/") == 0) home = "";
+
+    if(!home) home = getenv("APPDATA");
+    if(home) return std::string(home) + "/.local/share";
+
+    return "./";
+}
+
 int start(dai::Device &device, int argc, char **argv, double fps, const std::string &filter_config, float amp_filter,
           float greenscreen_depth) {
     std::vector<std::shared_ptr<DepthaAICamera>> sockets = {
@@ -264,6 +277,7 @@ int start(dai::Device &device, int argc, char **argv, double fps, const std::str
 
     int width = 0, height = 0;
 
+    auto calibration_path = GetSaveDir() + "/dai_" + device.getMxId() + ".tof.calib";
 
     {
         dai::Pipeline pipeline;
@@ -272,6 +286,13 @@ int start(dai::Device &device, int argc, char **argv, double fps, const std::str
 
         auto tof = pipeline.create<dai::node::ToF>();
         tofCamera->raw.link(tof->inputImage);
+
+        if(auto calibration_path_file = std::ifstream(calibration_path, std::ios::binary | std::ios::ate)) {
+            auto size = calibration_path_file.tellg();
+            calibration_path_file.seekg(0);
+            tof->properties.tof_calibration.resize(size);
+            calibration_path_file.read(reinterpret_cast<char *>(tof->properties.tof_calibration.data()), size);
+        }
 
         if (!filter_config.empty()) {
             tof->setFilterConfig(filter_config);
@@ -371,7 +392,11 @@ int start(dai::Device &device, int argc, char **argv, double fps, const std::str
                     cvFrame = data->getCvFrame();
                 }
             }
-
+            if (event == "depth" && (cvFrame.rows == 1 || cvFrame.cols == 1)) {
+                if(auto calibration_path_file = std::ofstream(calibration_path, std::ios::binary)) {
+                    calibration_path_file.write(reinterpret_cast<const char *>(data->getData().data()), data->getData().size());
+                }
+            }
             if (cameras[event] && cvFrame.rows > 1 && cvFrame.cols > 1)
                 cameras[event]->publish(cvFrame);
             if (event == "rgb") {
